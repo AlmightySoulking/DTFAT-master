@@ -1,0 +1,53 @@
+import torchaudio
+import torch
+import matplotlib.pyplot as plt
+
+def _resample_wav(wav,orig_sr,req_sr,fname):
+    if orig_sr==req_sr:
+        return wav
+    else:
+        resample_wav_ = torchaudio.transforms.Resample(orig_freq= orig_sr, new_freq= req_sr)
+        wav = resample_wav_(wav)
+        return wav
+
+def _wav2fbank(filename):
+    SAMPLE_RATE = 32000
+    waveform, sr = torchaudio.load(filename)
+    waveform = _resample_wav(wav=waveform,orig_sr=sr,req_sr=SAMPLE_RATE,fname=filename)
+    sr = SAMPLE_RATE
+    waveform = waveform - waveform.mean()
+
+    fbank = torchaudio.compliance.kaldi.fbank(waveform, htk_compat=True, sample_frequency=sr, use_energy=False,
+                                              window_type='hanning', num_mel_bins=128, dither=0.0, frame_shift=10)
+
+    target_length = 300
+    n_frames = fbank.shape[0]
+    p = target_length - n_frames
+    # cut and pad
+    if p > 0:
+        m = torch.nn.ZeroPad2d((0, 0, 0, p))
+        fbank = m(fbank)
+    elif p < 0:
+        fbank = fbank[0:target_length, :]
+
+    return fbank
+
+def plot_spectogram(fbank_tensor, title):
+  spectrogram_data = fbank_tensor.detach().cpu().numpy()
+  spectrogram_data = spectrogram_data.T
+  plt.imshow(spectrogram_data, origin='lower', aspect='auto', cmap='coolwarm')
+  plt.title(title)
+  plt.ylabel("Mel Filter Bins (Frequency)")
+  plt.xlabel("Time Frames")
+  plt.colorbar(format='%+2.0f dB') # Adds a color scale bar
+  plt.show()
+
+
+if __name__=='__main__':
+    for i in range(1,6):
+        data = _wav2fbank('/home/almighty/Machine learning Codes/DTFAT-master/egs/audioset/audio_files_for_spectogram/bonafide{}.flac'.format(i))
+        plot_spectogram(data,"bonafide{}".format(i))
+
+    for i in range(1,6):
+        data = _wav2fbank('/home/almighty/Machine learning Codes/DTFAT-master/egs/audioset/audio_files_for_spectogram/spoof{}.flac'.format(i))
+        plot_spectogram(data,"spoof{}".format(i))
